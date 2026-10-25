@@ -42,12 +42,11 @@ export default function Login() {
       </form>
 
       <div className="card p-3 mt-3 small">
-        <strong className="mb-2">Demo accounts (after running the seed)</strong>
+        <strong className="mb-2">Try it as a guest</strong>
         <div className="d-flex flex-wrap gap-2">
-          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => fill('guest@hotelpro.com', 'Guest@123')}>Guest</button>
-          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => fill('staff@hotelpro.com', 'Staff@123')}>Staff</button>
-          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => fill('admin@hotelpro.com', 'Admin@123')}>Admin</button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => fill('guest@hotelpro.com', 'Guest@123')}>Fill demo guest login</button>
         </div>
+        <div className="text-muted mt-2">Staff and admin logins are private. Ask the project owner for access.</div>
       </div>
     </div>
   );

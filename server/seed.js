@@ -20,13 +20,33 @@ const rooms = [
   { roomNumber: '401', type: 'suite', pricePerNight: 9999, capacity: 4, amenities: ['Wi-Fi', 'AC', 'Smart TV', 'Jacuzzi', 'Breakfast', 'Lounge access'], description: 'Two-room presidential suite with a living area and jacuzzi.' },
 ].map((r) => ({ ...r, images: [img(r.roomNumber)] }));
 
+// Passwords come from environment variables so real admin/staff passwords never live in the code.
+// Without them (local database only) the demo defaults below are used.
+const ADMIN_PW = process.env.SEED_ADMIN_PASSWORD || 'Admin@123';
+const STAFF_PW = process.env.SEED_STAFF_PASSWORD || 'Staff@123';
+const GUEST_PW = process.env.SEED_GUEST_PASSWORD || 'Guest@123';
+
+// Safety: never seed an online (Atlas) database with the public default passwords
+const usingAtlas = /^mongodb\+srv:/i.test(process.env.MONGO_URI || '');
+if (usingAtlas && (!process.env.SEED_ADMIN_PASSWORD || !process.env.SEED_STAFF_PASSWORD)) {
+  console.error('Refusing to seed an online database with the default passwords.\n' +
+    'Set SEED_ADMIN_PASSWORD and SEED_STAFF_PASSWORD first (at least 8 characters), then run the seed again.');
+  process.exit(1);
+}
+for (const [name, value] of [['SEED_ADMIN_PASSWORD', process.env.SEED_ADMIN_PASSWORD], ['SEED_STAFF_PASSWORD', process.env.SEED_STAFF_PASSWORD]]) {
+  if (value && value.length < 8) {
+    console.error(`${name} must be at least 8 characters.`);
+    process.exit(1);
+  }
+}
+
 const run = async () => {
   await connectDB();
   await Promise.all([User.deleteMany(), Room.deleteMany(), Booking.deleteMany(), Payment.deleteMany()]);
 
-  const admin = await User.create({ name: 'Admin User', email: 'admin@hotelpro.com', password: 'Admin@123', role: 'admin' });
-  const staff = await User.create({ name: 'Front Desk', email: 'staff@hotelpro.com', password: 'Staff@123', role: 'staff' });
-  const guest = await User.create({ name: 'Demo Guest', email: 'guest@hotelpro.com', password: 'Guest@123', phone: '9876543210' });
+  const admin = await User.create({ name: 'Admin User', email: 'admin@hotelpro.com', password: ADMIN_PW, role: 'admin' });
+  const staff = await User.create({ name: 'Front Desk', email: 'staff@hotelpro.com', password: STAFF_PW, role: 'staff' });
+  const guest = await User.create({ name: 'Demo Guest', email: 'guest@hotelpro.com', password: GUEST_PW, phone: '9876543210' });
 
   const created = await Room.insertMany(rooms);
   const byNo = Object.fromEntries(created.map((r) => [r.roomNumber, r]));
@@ -55,7 +75,10 @@ const run = async () => {
     });
   }
 
-  console.log('Seed complete.\n  admin@hotelpro.com / Admin@123\n  staff@hotelpro.com / Staff@123\n  guest@hotelpro.com / Guest@123');
+  console.log('Seed complete.');
+  console.log('  admin@hotelpro.com  (password: ' + (process.env.SEED_ADMIN_PASSWORD ? 'the one you set' : 'default, local only') + ')');
+  console.log('  staff@hotelpro.com  (password: ' + (process.env.SEED_STAFF_PASSWORD ? 'the one you set' : 'default, local only') + ')');
+  console.log('  guest@hotelpro.com  (public demo guest)');
   void admin; void staff;
   process.exit(0);
 };
