@@ -72,9 +72,11 @@ Open **http://localhost:5173**
 
 ### Demo accounts (created by `npm run seed`)
 
-| Role  | Email               | Password  |
-|-------|---------------------|-----------|
-| Guest | guest@hotelpro.com  | Guest@123 |
+| Role  | Email                   | Password        |
+|-------|-------------------------|-----------------|
+| Admin | demo.admin@hotelpro.com | Review2026Admin |
+| Staff | demo.staff@hotelpro.com | Review2026Staff |
+| Guest | guest@hotelpro.com      | Guest@123       |
 
 `admin@hotelpro.com` and `staff@hotelpro.com` are also created. Their passwords are set while seeding with the
 `SEED_ADMIN_PASSWORD` and `SEED_STAFF_PASSWORD` environment variables (at least 8 characters) and are shared privately.
