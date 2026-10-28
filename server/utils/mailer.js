@@ -104,4 +104,14 @@ const sendWelcome = (user) =>
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h2>Welcome, ${esc(user.name)}!</h2><p>Your HotelPro account is ready. You can now search rooms by date and book instantly.</p></div>`,
   });
 
-module.exports = { emailBooking, sendWelcome };
+// true when a real email provider is configured
+const mailConfigured = () => Boolean((process.env.BREVO_API_KEY || process.env.SMTP_HOST) && process.env.MAIL_FROM);
+
+const sendVerification = (user, link) =>
+  send({
+    to: user.email,
+    subject: 'Verify your HotelPro email',
+    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h2>Hi ${esc(user.name)},</h2><p>Please confirm your email address to finish setting up your HotelPro account.</p><p><a href="${esc(link)}" style="background:#b8893b;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Verify my email</a></p><p style="color:#667;font-size:12px">This link works for 24 hours.</p></div>`,
+  });
+
+module.exports = { emailBooking, sendWelcome, sendVerification, mailConfigured };

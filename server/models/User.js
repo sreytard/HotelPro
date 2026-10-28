@@ -13,8 +13,12 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
     },
     password: { type: String, required: true, minlength: 6, select: false },
-    phone: { type: String, trim: true },
+    phone: { type: String, trim: true, maxlength: 20 },
     role: { type: String, enum: ['guest', 'staff', 'admin'], default: 'guest' },
+    // Email verification (only enforced when an email provider is configured)
+    emailVerified: { type: Boolean, default: true },
+    verifyTokenHash: { type: String, select: false },
+    verifyTokenExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

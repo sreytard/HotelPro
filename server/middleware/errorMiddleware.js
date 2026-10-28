@@ -1,4 +1,5 @@
 const httpError = require('../utils/httpError');
+const AuditLog = require('../models/AuditLog');
 
 const notFound = (req, res, next) => next(httpError(404, `Route not found: ${req.originalUrl}`));
 
@@ -22,7 +23,11 @@ const errorHandler = (err, req, res, next) => {
     message = `${Object.keys(err.keyValue || {})[0] || 'Value'} already exists`;
   }
 
-  if (status === 500) console.error(err);
+  if (status === 500) {
+    console.error(err);
+    // Error logging: unexpected server errors are saved for the admin's Activity log
+    AuditLog.create({ action: 'server_error', details: `${req.method} ${req.originalUrl}: ${err.message}`, level: 'error', ip: req.ip }).catch(() => {});
+  }
   res.status(status).json({ message: status === 500 && process.env.NODE_ENV === 'production' ? 'Server error' : message });
 };
 

@@ -28,11 +28,12 @@ const getBookedRoomIds = async (checkIn, checkOut) => {
   return Booking.find(overlapFilter(checkIn, checkOut)).distinct('room');
 };
 
-// true if the room has no overlapping active booking
-const isRoomFree = async (roomId, checkIn, checkOut) => {
+// true if the room has no overlapping active booking (excludeId = ignore this booking, used when modifying)
+const isRoomFree = async (roomId, checkIn, checkOut, excludeId = null) => {
   await expireStalePending();
-  const clashes = await Booking.countDocuments({ room: roomId, ...overlapFilter(checkIn, checkOut) });
-  return clashes === 0;
+  const filter = { room: roomId, ...overlapFilter(checkIn, checkOut) };
+  if (excludeId) filter._id = { $ne: excludeId };
+  return (await Booking.countDocuments(filter)) === 0;
 };
 
 // Upcoming booked date ranges of one room (no guest details - safe to show publicly)

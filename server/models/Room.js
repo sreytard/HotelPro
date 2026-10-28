@@ -11,6 +11,11 @@ const roomSchema = new mongoose.Schema(
     images: [{ type: String, trim: true }],
     // "maintenance" rooms are hidden from guests and cannot be booked
     status: { type: String, enum: ['available', 'maintenance'], default: 'available' },
+    // Housekeeping: a room becomes "dirty" after check-out and staff mark it clean again
+    housekeeping: { type: String, enum: ['clean', 'dirty', 'cleaning'], default: 'clean' },
+    // Maintained automatically from guest reviews
+    ratingAvg: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

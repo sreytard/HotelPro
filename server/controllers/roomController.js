@@ -8,7 +8,9 @@ const httpError = require('../utils/httpError');
 const pick = require('../utils/pick');
 const { parseStay, todayUTC } = require('../utils/dates');
 const { getBookedRoomIds, isRoomFree, getBookedRanges } = require('../utils/availability');
+const { quote } = require('../utils/pricing');
 const { notifyChange } = require('../utils/socket');
+const { logActivity } = require('../utils/audit');
 
 const FIELDS = ['roomNumber', 'type', 'pricePerNight', 'capacity', 'description', 'amenities', 'images', 'status'];
 
@@ -42,19 +44,21 @@ const getRoom = asyncHandler(async (req, res) => {
 });
 
 // GET /api/rooms/:id/availability?checkIn=&checkOut=  (public)
-// Returns the room's upcoming booked date ranges and, if dates are given, whether they are free.
+// Returns the room's upcoming booked date ranges and, if dates are given, whether they are free + the price quote.
 const getAvailability = asyncHandler(async (req, res) => {
   const room = await Room.findById(req.params.id);
   if (!room) throw httpError(404, 'Room not found');
 
   const bookedRanges = await getBookedRanges(room._id);
   let available = null;
+  let priceQuote = null;
   const { checkIn, checkOut } = req.query;
   if (checkIn && checkOut) {
     const stay = parseStay(checkIn, checkOut);
     available = room.status === 'available' && (await isRoomFree(room._id, stay.checkIn, stay.checkOut));
+    priceQuote = await quote(room, stay.checkIn, stay.checkOut);
   }
-  res.json({ available, bookedRanges });
+  res.json({ available, bookedRanges, quote: priceQuote });
 });
 
 // ---------------------------------------------------------------------------
@@ -116,6 +120,7 @@ const uploadImages = asyncHandler(async (req, res) => {
 const createRoom = asyncHandler(async (req, res) => {
   const room = await Room.create(pick(req.body, FIELDS));
   notifyChange('room', room._id);
+  logActivity(req, 'room_create', `Room ${room.roomNumber}`);
   res.status(201).json(room);
 });
 
@@ -126,6 +131,20 @@ const updateRoom = asyncHandler(async (req, res) => {
   Object.assign(room, pick(req.body, FIELDS));
   await room.save();
   notifyChange('room', room._id);
+  logActivity(req, 'room_update', `Room ${room.roomNumber}`);
+  res.json(room);
+});
+
+// PUT /api/rooms/:id/housekeeping  { status }  (staff, admin)
+const updateHousekeeping = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  if (!['clean', 'dirty', 'cleaning'].includes(status)) throw httpError(400, 'Status must be clean, dirty or cleaning');
+  const room = await Room.findById(req.params.id);
+  if (!room) throw httpError(404, 'Room not found');
+  room.housekeeping = status;
+  await room.save();
+  notifyChange('room', room._id);
+  logActivity(req, 'housekeeping', `Room ${room.roomNumber} -> ${status}`);
   res.json(room);
 });
 
@@ -141,7 +160,8 @@ const deleteRoom = asyncHandler(async (req, res) => {
   if (live) throw httpError(400, 'Room has active or upcoming bookings and cannot be deleted');
   await room.deleteOne();
   notifyChange('room', room._id);
+  logActivity(req, 'room_delete', `Room ${room.roomNumber}`, 'warn');
   res.json({ message: 'Room deleted' });
 });
 
-module.exports = { getRooms, getRoom, getAvailability, uploadImages, createRoom, updateRoom, deleteRoom };
+module.exports = { getRooms, getRoom, getAvailability, uploadImages, createRoom, updateRoom, updateHousekeeping, deleteRoom };

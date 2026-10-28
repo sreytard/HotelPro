@@ -1,14 +1,15 @@
 const router = require('express').Router();
-const { getRooms, getRoom, getAvailability, uploadImages, createRoom, updateRoom, deleteRoom } = require('../controllers/roomController');
+const c = require('../controllers/roomController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
 
-router.get('/', getRooms);
-router.post('/upload', protect, authorize('staff', 'admin'), upload.array('images', 5), uploadImages);
-router.get('/:id/availability', getAvailability);
-router.get('/:id', getRoom);
-router.post('/', protect, authorize('staff', 'admin'), createRoom);
-router.put('/:id', protect, authorize('staff', 'admin'), updateRoom);
-router.delete('/:id', protect, authorize('admin'), deleteRoom);
+router.get('/', c.getRooms);
+router.post('/upload', protect, authorize('staff', 'admin'), upload.array('images', 5), c.uploadImages);
+router.get('/:id/availability', c.getAvailability);
+router.get('/:id', c.getRoom);
+router.post('/', protect, authorize('staff', 'admin'), c.createRoom);
+router.put('/:id/housekeeping', protect, authorize('staff', 'admin'), c.updateHousekeeping);
+router.put('/:id', protect, authorize('staff', 'admin'), c.updateRoom);
+router.delete('/:id', protect, authorize('admin'), c.deleteRoom);
 
 module.exports = router;

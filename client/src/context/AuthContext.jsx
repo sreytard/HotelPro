@@ -1,33 +1,30 @@
-import { createContext, useContext, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import api from '../api/axios';
+import { setUser, patchUser, clearUser } from '../store/authSlice';
+import { clearNotifications } from '../store/notificationsSlice';
 
-const AuthContext = createContext(null);
+export const useAuth = () => {
+  const dispatch = useDispatch();
+  const user = useSelector((state) => state.auth.user);
 
-const readStored = () => {
-  try {
-    return JSON.parse(localStorage.getItem('hotelpro_user'));
-  } catch {
-    return null;
-  }
-};
-
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(readStored());
-
-  const save = (data) => {
-    localStorage.setItem('hotelpro_user', JSON.stringify(data));
-    setUser(data);
+  const login = async (email, password) => {
+    const { data } = await api.post('/auth/login', { email, password });
+    dispatch(setUser(data));
     return data;
   };
-
-  const login = async (email, password) => save((await api.post('/auth/login', { email, password })).data);
-  const register = async (payload) => save((await api.post('/auth/register', payload)).data);
-  const logout = () => {
-    localStorage.removeItem('hotelpro_user');
-    setUser(null);
+  const register = async (payload) => {
+    const { data } = await api.post('/auth/register', payload);
+    dispatch(setUser(data));
+    return data;
   };
+  const logout = () => {
+    dispatch(clearUser());
+    dispatch(clearNotifications());
+  };
+  const updateUser = (changes) => dispatch(patchUser(changes));
 
-  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>;
-}
+  return { user, login, register, logout, updateUser };
+};
 
-export const useAuth = () => useContext(AuthContext);
+// Kept so older imports still work; the Redux <Provider> in main.jsx does the real work now
+export const AuthProvider = ({ children }) => children;

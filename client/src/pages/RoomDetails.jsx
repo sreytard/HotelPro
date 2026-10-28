@@ -3,7 +3,9 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import useLiveRefresh from '../hooks/useLiveRefresh';
-import { formatDate, formatINR, getErrorMessage, roomImage, todayISO } from '../utils/format';
+import Stars from '../components/Stars';
+import Pager from '../components/Pager';
+import { formatDate, formatINR, getErrorMessage, optimizeImg, roomImage, todayISO } from '../utils/format';
 
 export default function RoomDetails() {
   const { id } = useParams();
@@ -16,18 +18,28 @@ export default function RoomDetails() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(0); // selected gallery photo
-  const [avail, setAvail] = useState({ available: null, bookedRanges: [] });
+  const [avail, setAvail] = useState({ available: null, bookedRanges: [], quote: null });
+  const [reviews, setReviews] = useState({ items: [], page: 1, pages: 1, total: 0 });
   const [form, setForm] = useState({
     checkIn: params.get('checkIn') || '',
     checkOut: params.get('checkOut') || '',
     guests: Number(params.get('guests')) || 1,
   });
 
-  useEffect(() => {
+  const loadRoom = useCallback(() => {
     api.get(`/rooms/${id}`).then((r) => setRoom(r.data)).catch((e) => setError(getErrorMessage(e)));
   }, [id]);
 
-  // Live availability for the chosen dates + the room's upcoming booked ranges
+  const loadReviews = useCallback(async (page = 1) => {
+    try {
+      const { data } = await api.get(`/reviews/room/${id}`, { params: { page, limit: 5 } });
+      setReviews(data);
+    } catch {
+      /* ignore */
+    }
+  }, [id]);
+
+  // Live availability + seasonal price quote for the chosen dates, and the room's upcoming booked ranges
   const checkAvail = useCallback(async () => {
     try {
       const q = {};
@@ -38,19 +50,18 @@ export default function RoomDetails() {
       const { data } = await api.get(`/rooms/${id}/availability`, { params: q });
       setAvail(data);
     } catch {
-      setAvail((a) => ({ ...a, available: null }));
+      setAvail((a) => ({ ...a, available: null, quote: null }));
     }
   }, [id, form.checkIn, form.checkOut]);
 
+  useEffect(() => { loadRoom(); loadReviews(1); }, [loadRoom, loadReviews]);
   useEffect(() => { checkAvail(); }, [checkAvail]);
-  useLiveRefresh(checkAvail); // updates instantly when someone else books this room
-
-  const nights = form.checkIn && form.checkOut
-    ? Math.round((new Date(form.checkOut) - new Date(form.checkIn)) / 86400000)
-    : 0;
-  const total = room && nights > 0 ? nights * room.pricePerNight : 0;
+  // Updates instantly when someone else books this room or a review is added
+  useLiveRefresh(() => { checkAvail(); loadRoom(); loadReviews(reviews.page); });
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  const nights = avail.quote?.nights || 0;
+  const seasons = [...new Set((avail.quote?.nightly || []).map((n) => n.rule).filter(Boolean))];
 
   const submit = async (e) => {
     e.preventDefault();
@@ -59,7 +70,7 @@ export default function RoomDetails() {
       navigate('/login', { state: { from: location.pathname + location.search } });
       return;
     }
-    if (nights <= 0) {
+    if (!form.checkIn || !form.checkOut || new Date(form.checkOut) <= new Date(form.checkIn)) {
       setError('Check-out must be after check-in.');
       return;
     }
@@ -90,21 +101,41 @@ export default function RoomDetails() {
     <div className="container py-4">
       <div className="row g-4">
         <div className="col-lg-7">
-          <img src={main} alt={`Room ${room.roomNumber}`} className="img-fluid rounded w-100" style={{ maxHeight: 420, objectFit: 'cover' }} />
+          <img src={optimizeImg(main, 1100)} alt={`Room ${room.roomNumber}`} className="img-fluid rounded w-100" style={{ maxHeight: 420, objectFit: 'cover' }} />
           {photos.length > 1 && (
             <div className="d-flex gap-2 mt-2 flex-wrap">
               {photos.map((p, i) => (
                 <button key={p + i} type="button" className="p-0 border-0 bg-transparent" onClick={() => setActive(i)} aria-label={`Show photo ${i + 1}`}>
-                  <img src={p} alt="" width="84" height="60" className={`rounded ${i === active ? 'border border-2 border-dark' : ''}`} style={{ objectFit: 'cover' }} />
+                  <img src={optimizeImg(p, 200)} alt="" width="84" height="60" className={`rounded ${i === active ? 'border border-2 border-primary' : ''}`} style={{ objectFit: 'cover' }} />
                 </button>
               ))}
             </div>
           )}
           <h2 className="mt-3 text-capitalize">{room.type} room {room.roomNumber}</h2>
-          <p className="text-muted">Sleeps {room.capacity} · {formatINR(room.pricePerNight)} per night</p>
+          <p className="mb-1">{room.ratingCount > 0 ? <Stars value={room.ratingAvg} count={room.ratingCount} size="medium" /> : <span className="text-muted">No reviews yet</span>}</p>
+          <p className="text-muted">Sleeps {room.capacity} · from {formatINR(room.pricePerNight)} per night</p>
           <p>{room.description}</p>
           <h6>Amenities</h6>
-          <div>{room.amenities.map((a) => <span key={a} className="badge text-bg-light border me-1 mb-1">{a}</span>)}</div>
+          <div>{room.amenities.map((a) => <span key={a} className="badge bg-body-secondary text-body border me-1 mb-1">{a}</span>)}</div>
+
+          <h5 className="mt-4">Guest reviews</h5>
+          {reviews.items.length === 0 ? (
+            <p className="text-muted">No reviews yet. Guests can review a room after their stay.</p>
+          ) : (
+            <>
+              {reviews.items.map((r) => (
+                <div key={r._id} className="card p-3 mb-2">
+                  <div className="d-flex justify-content-between">
+                    <strong>{r.user?.name || 'Guest'}</strong>
+                    <small className="text-muted">{formatDate(r.createdAt)}</small>
+                  </div>
+                  <Stars value={r.rating} />
+                  {r.comment && <p className="mb-0 mt-1">{r.comment}</p>}
+                </div>
+              ))}
+              <Pager page={reviews.page} pages={reviews.pages} onChange={loadReviews} />
+            </>
+          )}
         </div>
 
         <div className="col-lg-5">
@@ -123,8 +154,13 @@ export default function RoomDetails() {
             {avail.available === false && <div className="alert alert-danger py-2">Not available for these dates. Pick other dates or another room.</div>}
 
             {nights > 0 && (
-              <div className="bg-light rounded p-3 mb-3">
-                <div className="d-flex justify-content-between"><span>{formatINR(room.pricePerNight)} × {nights} night(s)</span><strong>{formatINR(total)}</strong></div>
+              <div className="bg-body-tertiary rounded p-3 mb-3">
+                <div className="d-flex justify-content-between">
+                  <span>{nights} night(s) × about {formatINR(Math.round(avail.quote.total / nights))}</span>
+                  <strong>{formatINR(avail.quote.total)}</strong>
+                </div>
+                {seasons.length > 0 && <small className="text-muted">Includes seasonal pricing: {seasons.join(', ')}</small>}
+                <div><small className="text-muted">Taxes included</small></div>
               </div>
             )}
             <button className="btn btn-brass" disabled={busy || room.status !== 'available' || avail.available === false}>

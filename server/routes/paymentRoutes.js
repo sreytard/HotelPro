@@ -1,11 +1,14 @@
 const router = require('express').Router();
-const { payBooking, getMyPayments, getAllPayments } = require('../controllers/paymentController');
+const c = require('../controllers/paymentController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
-router.get('/my', getMyPayments);
-router.get('/', authorize('admin'), getAllPayments);
-router.post('/:bookingId', payBooking);
+router.get('/config', c.getConfig);
+router.get('/my', c.getMyPayments);
+router.get('/', authorize('admin'), c.getAllPayments);
+router.post('/:bookingId/razorpay/order', c.createRazorpayOrder);
+router.post('/:bookingId/razorpay/verify', c.verifyRazorpayPayment);
+router.post('/:bookingId', c.payBooking);
 
 module.exports = router;
